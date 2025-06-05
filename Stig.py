@@ -1,3 +1,5 @@
+import os
+import re
 import subprocess
 
 # V-260469 
@@ -63,8 +65,93 @@ def check_telnet_not_installed():
         return f"ERROR: {str(e)}"    
 
 
+# V-260523
+# Cat 1
+def check_ssh_not_installed():
+    try:
+
+        for _ in range(2):
+            result = subprocess.run(["dpkg","-l","openssh-server"], capture_output=True, text=True)
+            output = result.stdout + result.stderr
+
+            if re.search(r"^ii\s+openssh-server", output, re.MULTILINE):
+                return "Pass: V-260523"
+            else:
+                subprocess.run(["sudo", "apt", "install", "-y", "ssh"], check=True)
+        
+
+        return "Fail: V-260523"
+        
+    except Exception as e:
+        return f"ERROR: {str(e)}"  
+
+# V-260524
+# Cat 1
+def check_ssh_enabled():
+    try:
+        for _ in range(2):
+            result1 = subprocess.run(["systemctl","is-enabled","ssh"], capture_output=True, text=True)
+            result2 = subprocess.run(["systemctl","is-active","ssh"], capture_output=True, text=True)
+
+            if "enabled" in result1.stdout and "active" in result2.stdout:
+                return "Pass: V-260524"
+            else:
+                subprocess.run(["systemctl","enable","ssh-service","--now"], text=True)
+        
+
+        return "Fail: V-260524"
+        
+    except Exception as e:
+        return f"ERROR: {str(e)}"      
+
+
+### Not Done ###
+# V-260539
+# Cat 1
+def check_ctrl_alt_delete_graphical():
+    try:
+
+        result = subprocess.run(["gsettings", "get", "org.gnome.settings-daemon.plugins.media-keys", "logout"], capture_output=True, text=True)
+        output = result.stdout.strip()
+
+        if output == "[]" or output=="@as []":
+            return "Pass: V-260539"
+            
+        dconf_dir = "/etc/dconf/db/local.d"
+        dconf_file = os.path.join(dconf_dir, "00-screensaver")
+        dconf_contents = (
+        "[org/gnome/settings-daemon/plugins/media-keys]\n"
+        'logout=""\n'
+        )
+        os.makedirs(dconf_dir, exist_ok=True)
+            
+        with open(dconf_file, "w") as f:
+            f.write(dconf_contents)
+
+        subprocess.run(["sudo", "dconf", "update"], check=True)
+
+        #recheck
+        result = subprocess.run(["gsettings", "get", "org.gnome.settings-daemon.plugins.media-keys", "logout"], capture_output=True, text=True)
+        output = result.stdout.strip()
+
+        if output == "[]" or output=="@as []":
+            return "Pass: V-260539"
+
+        return "Fail: V-260539"
+        
+    except Exception as e:
+        return f"ERROR: {str(e)}"       
 
 if __name__ == "__main__":
-    result = check_ctrl_alt_delete()+"\n"+check_rsh_server_not_installed()+"\n"+check_telnet_not_installed()+"\n"
-    print(result)
+    checks = [
+        check_ctrl_alt_delete,
+        check_rsh_server_not_installed,
+        check_telnet_not_installed,
+        check_ssh_not_installed,
+        check_ssh_enabled
+        #,check_ctrl_alt_delete_graphical
+    ]
+
+    results = "\n".join(check() for check in checks)
+    print(results)
     
