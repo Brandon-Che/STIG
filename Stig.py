@@ -141,6 +141,47 @@ def check_ctrl_alt_delete_graphical():
         
     except Exception as e:
         return f"ERROR: {str(e)}"       
+    
+# V-260559
+# Cat 1
+def get_sudo_group():
+    try:
+        result = subprocess.run(["grep", "sudo", "/etc/group"], capture_output=True, text=True)
+        if ":" in result.stdout:
+            return "Sudo group users(V-260559): "+", ".join(result.stdout.strip().split(":")[-1].split(","))
+        return "No sudo group users(V-260559)"
+    except Exception as e:
+        return f"ERROR: {str(e)}" 
+
+# todo: Implement an auto fix
+# V-260570
+# Cat 1
+def no_null_passwords():
+    try:
+        result = subprocess.run(["grep", "nullok", " /etc/pam.d/common-auth", " /etc/pam.d/common-password"], capture_output=True, text=True)
+
+        if result.stdout.strip():
+            return "Fail: 'nullok' found in PAM configuration(V-260570):\n" + result.stdout.strip()
+        else:
+            return "Pass: V-260559"
+    except Exception as e:
+        return f"ERROR: {str(e)}" 
+
+# todo: Implement an auto fix
+# V-260571
+# Cat 1
+def no_account_null_passwords():
+    try:
+        result = subprocess.run(["awk", "-F:", "!$2 {print $1}", "/etc/shadow"], capture_output=True, text=True)
+        if result.stdout.strip():
+            return "Fail: Accounts with blank passwords(V-260571):\n" + result.stdout.strip()
+        else:
+            return "Pass: V-260571"  
+              
+    except Exception as e:
+        return f"ERROR: {str(e)}"      
+
+
 
 if __name__ == "__main__":
     checks = [
@@ -150,6 +191,9 @@ if __name__ == "__main__":
         check_ssh_not_installed,
         check_ssh_enabled
         #,check_ctrl_alt_delete_graphical
+        ,get_sudo_group,
+        no_null_passwords,
+        no_account_null_passwords
     ]
 
     results = "\n".join(check() for check in checks)
